@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:6
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - expensy_network
+
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - expensy_network
+
+  backend:
+    build: ./expensy_backend
+    image: expensy-backend:v1
+    container_name: expensy-backend
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ./expensy_backend/.env
+    ports:
+      - "8706:8706"
+    restart: unless-stopped
+    command: ["npm", "start"]
+    networks:
+      - expensy_network
+
+  frontend:
+    build: ./expensy_frontend
+    image: expensy-frontend:v1
+    container_name: expensy-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://backend:8706
+    restart: unless-stopped
+    networks:
+      - expensy_network
+
+networks:
+  expensy_network:
+    name: expensy-network
+
